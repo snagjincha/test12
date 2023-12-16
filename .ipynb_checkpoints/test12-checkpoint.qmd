@@ -94,22 +94,28 @@ df = pd.read_csv("https://raw.githubusercontent.com/guebin/DV2023/main/posts/NYC
     dayofweek = lambda df: df.pickup_datetime.dt.dayofweek
 )
 df_small = df[::100].reset_index(drop=True)
+
+
 pcol = ['pickup_longitude','pickup_latitude']
 dcol = ['dropoff_longitude','dropoff_latitude']
+
 dfs = df_small.copy()
 def transform(df):
   pickup = df.loc[:,['id','speed'] + pcol].set_axis(['id','speed','longitude','latitude'],axis=1).assign(type='pickup')
   dropoff = df.loc[:,['id','speed'] + dcol].set_axis(['id','speed','longitude','latitude'],axis=1).assign(type='dropoff')
   return pd.concat([pickup,dropoff],axis=0)
 tidydata = pd.concat([transform(df) for i,df in dfs.groupby('id')],axis=0).reset_index(drop=True)
+
 speed_cut = pd.qcut(tidydata.speed,4,labels=['매우느림','조금느림','조금빠름','매우빠름'])
 tidydata.speed = speed_cut
-tidydata = tidydata.rename({'speed':'speed_cut'},axis=1).sort_values('speed_cut')
-tidydata.reset_index(drop=True)
+tidydata = tidydata.rename({'speed':'speed_cut'},axis=1).sort_values('speed_cut').reset_index(drop=True)
+
 df_left = dfs.drop(pcol+dcol,axis=1)
 df_right = tidydata
 tidydata1 = df_right.merge(df_left)
 tidydata1
+
+
 fig3 = px.line_mapbox(
     data_frame=tidydata1,
     lat = 'latitude',
@@ -145,6 +151,7 @@ fig3.update_traces(
     opacity=0.8,
 )
 fig3.layout['legend']['title']['text'] = '평균속력'
+
 for i in range(150):
     if (fig3.data[i]['mode']=='lines') and (fig3.data[i]['name']=='조금빠름'):
         fig3.data[i]['name']='조금빠름(path)'
@@ -161,6 +168,8 @@ for i in range(150):
     elif (fig3.data[i]['mode']=='markers') and (fig3.data[i]['name']=='조금느림'):
         fig3.data[i]['name']='조금느림(pickup/dropoff)'
     elif (fig3.data[i]['mode']=='markers') and (fig3.data[i]['name']=='매우느림'):
-        fig3.data[i]['name']='매우느림(pickup/dropoff)'    
+        fig3.data[i]['name']='매우느림(pickup/dropoff)'
+    
+    
 fig3.show(config={"scrollZoom":False})
 ```
