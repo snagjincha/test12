@@ -133,45 +133,29 @@ fig3 = px.line_mapbox(
 )
 scatter_data = px.scatter_mapbox(
     data_frame=tidydata1,
-    lat = 'latitude',
-    lon = 'longitude',
-    size = 'passenger_count',
-    size_max = 10,
-    color = 'speed_cut',
-    #---#
-    mapbox_style = 'carto-positron',
+    lat='latitude',
+    lon='longitude',
+    size='passenger_count',
+    size_max=10,
+    color='speed_cut',
+    mapbox_style='carto-positron',
     zoom=10,
-    width = 750,
-    height = 600
-).data
-for sd in scatter_data:
-    fig3.add_trace(sd)
-fig3.update_traces(
-    line={
-        'width':1
-    },
-    opacity=0.8,
+    width=750,
+    height=600    
 )
-fig3.layout['legend']['title']['text'] = '평균속력'
 
-for i in range(150):
-    if (fig3.data[i]['mode']=='lines') and (fig3.data[i]['name']=='조금빠름'):
-        fig3.data[i]['name']='조금빠름(path)'
-    elif (fig3.data[i]['mode']=='lines') and (fig3.data[i]['name']=='매우빠름'):
-        fig3.data[i]['name']='조금빠름(path)'
-    elif (fig3.data[i]['mode']=='lines') and (fig3.data[i]['name']=='조금느림'):
-        fig3.data[i]['name']='조금느림(path)'
-    elif (fig3.data[i]['mode']=='lines') and (fig3.data[i]['name']=='매우느림'):
-        fig3.data[i]['name']='매우느림(path)'
-    elif (fig3.data[i]['mode']=='markers') and (fig3.data[i]['name']=='조금빠름'):
-        fig3.data[i]['name']='조금빠름(pickup/dropoff)'
-    elif (fig3.data[i]['mode']=='markers') and (fig3.data[i]['name']=='매우빠름'):
-        fig3.data[i]['name']='매우빠름(pickup/dropoff)'
-    elif (fig3.data[i]['mode']=='markers') and (fig3.data[i]['name']=='조금느림'):
-        fig3.data[i]['name']='조금느림(pickup/dropoff)'
-    elif (fig3.data[i]['mode']=='markers') and (fig3.data[i]['name']=='매우느림'):
-        fig3.data[i]['name']='매우느림(pickup/dropoff)'
-    
-    
-fig3.show(config={"scrollZoom":False})
+# Add scatter data to fig3 and update names
+for trace in scatter_data.data:
+    trace.name = f'{trace.name} (pickup/dropoff)'
+    fig3.add_trace(trace)
+
+# Update line traces, not scatter traces
+fig3.update_traces(
+    line={'width': 1},
+    opacity=0.8,
+    selector={'type': 'scattermapbox'}  # This selector is incorrect; it should target line traces
+)
+
+# Show fig3 without scrollZoom
+fig3.show(config={'scrollZoom': False})
 ```
