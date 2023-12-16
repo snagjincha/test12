@@ -144,9 +144,14 @@ scatter_data = px.scatter_mapbox(
     height=600    
 )
 # Scatter 데이터 추가
+existing_ids = set()
 for trace in scatter_data.data:
-    trace.name += ' (pickup/dropoff)'  # 이름 변경
-    fig3.add_trace(trace)  # fig3에 추가
+    trace_id = trace.customdata[0]  # customdata는 각 트레이스가 가지고 있는 고유한 데이터입니다.
+    if trace_id not in existing_ids:
+        existing_ids.add(trace_id)
+        trace.name = f'{trace.name} (pickup/dropoff)'
+        fig3.add_trace(trace)
+    # 이제 이미 추가된 id에 대해서는 트레이스를 추가하지 않습니다.
 
 # 선 그래프 속성 업데이트
 fig3.update_traces(
