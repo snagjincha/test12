@@ -143,22 +143,19 @@ scatter_data = px.scatter_mapbox(
     width=750,
     height=600    
 )
-
-# Add scatter data to fig3 and update names
+# Scatter 데이터 추가
 for trace in scatter_data.data:
-    trace.name = f'{trace.name} (pickup/dropoff)'
-    fig3.add_trace(trace)
+    trace.name += ' (pickup/dropoff)'  # 이름 변경
+    fig3.add_trace(trace)  # fig3에 추가
 
-# Update line traces, not scatter traces
+# 선 그래프 속성 업데이트
 fig3.update_traces(
-    line={'width': 1},
-    opacity=0.8,
-    selector={'type': 'scattermapbox', 'mode': 'lines'}  # 올바른 셀렉터로 수정
+    line=dict(width=1),  # 선 너비 설정
+    opacity=0.8,  # 투명도 설정
+    selector=dict(type='scattermapbox', mode='lines')  # 올바른 셀렉터 사용
 )
-for trace in fig3.data:
-    if trace.mode == 'lines':
-        trace.name = f'{trace.name} (path)'
 
 # Show fig3 without scrollZoom
 fig3.show(config={'scrollZoom': False})
+
 ```
