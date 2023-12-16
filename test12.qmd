@@ -1,6 +1,6 @@
 ---
-title: "에너지사용량 자료 분석"
-author: "본인이름~"
+title: "NYC Taxi 데이터"
+author: "차상진"
 format: dashboard
 execute: 
   enabled: true
@@ -9,78 +9,173 @@ execute:
   error: true
 ---
 
-```{python}
+#1-1번
+
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.io as pio
-import json
-import requests
 
+```{python}
 pd.options.plotting.backend = "plotly"
 pio.templates.default = "plotly_white"
 
-global_dict = json.loads(requests.get('https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2018/json/skorea-provinces-2018-geo.json').text)
-local_dict = json.loads(requests.get('https://raw.githubusercontent.com/southkorea/southkorea-maps/master/kostat/2018/json/skorea-municipalities-2018-geo.json').text)
-#--#
-url = 'https://raw.githubusercontent.com/guebin/DV2022/main/posts/Energy/{}.csv'
-prov = ['Seoul', 'Busan', 'Daegu', 'Incheon', 
-        'Gwangju', 'Daejeon', 'Ulsan', 'Sejongsi', 
-        'Gyeonggi-do', 'Gangwon-do', 'Chungcheongbuk-do', 
-        'Chungcheongnam-do', 'Jeollabuk-do', 'Jeollanam-do', 
-        'Gyeongsangbuk-do', 'Gyeongsangnam-do', 'Jeju-do']
-df = pd.concat([pd.read_csv(url.format(p+y)).assign(년도=y, 시도=p) for p in prov for y in ['2018', '2019', '2020', '2021']]).reset_index(drop=True)\
-.assign(년도 = lambda df: df.년도.astype(int))\
-.set_index(['년도','시도','지역']).applymap(lambda x: int(str(x).replace(',','')))\
-.reset_index()
-df_global = pd.DataFrame([l['properties'] for l in global_dict['features']])
-df_local = pd.DataFrame([l['properties'] for l in local_dict['features']])
-df_json = df_local.set_index('name')\
-.rename(
-    {name:name.split('시')[-1] for name in df_local['name'] if ('시' in name) and ('구' in name) and (len(name)>3)}
-).reset_index()\
-.drop(['base_year','name_eng'],axis=1)\
-.rename({'name':'name_local','code':'code_local'},axis=1)\
-.assign(code = lambda df: df['code_local'].str[:2])\
-.merge(df_global.drop(['base_year','name_eng'],axis=1))
-df_left = df.assign(
-    시도 = lambda df: df.시도.map({l['properties']['name_eng']:l['properties']['name'] for l in global_dict['features']})
-).assign(on = lambda df: df.시도 + '-' + df.지역)
-df_right = df_json.assign(on = lambda df: df.name + '-' + df.name_local)\
-.drop(['name_local','name'],axis=1)
-df2 = df_left.merge(
-    df_right.set_index('on')\
-    .rename({'인천광역시-남구':'인천광역시-미추홀구'})\
-    .reset_index()
-).drop(['on'],axis=1)
-```
-
-# 데이터탐색
-
-```{python}
-#| title: 에너지사용량 자료 
-import itables 
-itables.show(df2,showIndex=False)
-```
-
-# 시각화 {orientation="columns" scrolling="true"}
-
-## Column {width=50%}
-
-```{python}
-#| title: 2018년도 전기사용량 (전국)
-fig = px.choropleth_mapbox(
-    geojson = local_dict,
-    featureidkey = 'properties.code',
-    data_frame = df2.query('년도 == 2018'),
-    locations = 'code_local',
-    color = '에너지사용량(TOE)/전기',
-    hover_data = ['시도','지역'],
+df = pd.read_csv("https://raw.githubusercontent.com/guebin/DV2023/main/posts/NYCTaxi.csv").assign(
+    log_trip_duration = lambda df: np.log(df.trip_duration),
+    pickup_datetime = lambda df: df.pickup_datetime.apply(pd.to_datetime),
+    dropoff_datetime = lambda df: df.dropoff_datetime.apply(pd.to_datetime),
+    dist = lambda df: np.sqrt((df.pickup_latitude-df.dropoff_latitude)**2 + (df.pickup_longitude-df.dropoff_longitude)**2),
     #---#
-    mapbox_style="carto-positron",
-    range_color = [0,200000],
-    center={"lat": 36, "lon": 127.5}, 
-    zoom=6,
+    vendor_id = lambda df: df.vendor_id.map({1:'A',2:'B'})
+).assign(
+    speed = lambda df: df.dist / df.trip_duration,
+    pickup_hour = lambda df: df.pickup_datetime.dt.hour,
+    dropoff_hour = lambda df: df.dropoff_datetime.dt.hour,
+    dayofweek = lambda df: df.pickup_datetime.dt.dayofweek
 )
-fig.show(config={'scrollZoom':False})
+df_small = df[::100].reset_index(drop=True)
+
+week_dct = {0:'월',1:'화',2:'수',3:'목',4:'금',5:'토',6:'일'}
+_df = df.copy()
+
+df1 = _df.loc[:,['speed','pickup_hour','dayofweek']].groupby(['pickup_hour','dayofweek']).agg('mean')\
+.reset_index().sort_values('dayofweek').reset_index(drop=True)
+df1.dayofweek = df1.dayofweek.map(week_dct)
+df1
+
+fig = px.density_heatmap(
+    data_frame=df1,
+    x='pickup_hour',
+    y='dayofweek',
+    z='speed',
+    nbinsx=24,
+    nbinsy=7,
+    height=300
+)
+fig['layout']['coloraxis']['colorbar']['title']['text'] = '평균속력'
+fig['layout']['xaxis']['title']['text'] = 'pickup 시간'
+fig['layout']['yaxis']['title']['text'] = '요일'
+fig.show()
+```
+
+#1-2번
+
+```{python}
+df2 = _df.loc[:,['pickup_hour','dayofweek','dist']]\
+.groupby(['pickup_hour','dayofweek']).agg('mean').reset_index()\
+.sort_values('dayofweek').reset_index(drop=True).rename({'dist':'dist_mean'},axis=1)
+df2.dayofweek = df2.dayofweek.map(week_dct)
+df2
+
+fig = px.density_heatmap(
+    data_frame=df2,
+    x='pickup_hour',
+    y='dayofweek',
+    z='dist_mean',
+    nbinsx=24,
+    nbinsy=7,
+    height=300
+)
+fig['layout']['coloraxis']['colorbar']['title']['text'] = '평균이동거리'
+fig['layout']['xaxis']['title']['text'] = 'pickup 시간'
+fig['layout']['yaxis']['title']['text'] = '요일'
+fig.show()
+```
+
+#1-3번
+
+```{python}
+df = pd.read_csv("https://raw.githubusercontent.com/guebin/DV2023/main/posts/NYCTaxi.csv").assign(
+    log_trip_duration = lambda df: np.log(df.trip_duration),
+    pickup_datetime = lambda df: df.pickup_datetime.apply(pd.to_datetime),
+    dropoff_datetime = lambda df: df.dropoff_datetime.apply(pd.to_datetime),
+    dist = lambda df: np.sqrt((df.pickup_latitude-df.dropoff_latitude)**2 + (df.pickup_longitude-df.dropoff_longitude)**2),
+    #---#
+    vendor_id = lambda df: df.vendor_id.map({1:'A',2:'B'})
+).assign(
+    speed = lambda df: df.dist / df.trip_duration,
+    pickup_hour = lambda df: df.pickup_datetime.dt.hour,
+    dropoff_hour = lambda df: df.dropoff_datetime.dt.hour,
+    dayofweek = lambda df: df.pickup_datetime.dt.dayofweek
+)
+df_small = df[::100].reset_index(drop=True)
+
+
+pcol = ['pickup_longitude','pickup_latitude']
+dcol = ['dropoff_longitude','dropoff_latitude']
+
+dfs = df_small.copy()
+def transform(df):
+  pickup = df.loc[:,['id','speed'] + pcol].set_axis(['id','speed','longitude','latitude'],axis=1).assign(type='pickup')
+  dropoff = df.loc[:,['id','speed'] + dcol].set_axis(['id','speed','longitude','latitude'],axis=1).assign(type='dropoff')
+  return pd.concat([pickup,dropoff],axis=0)
+tidydata = pd.concat([transform(df) for i,df in dfs.groupby('id')],axis=0).reset_index(drop=True)
+
+speed_cut = pd.qcut(tidydata.speed,4,labels=['매우느림','조금느림','조금빠름','매우빠름'])
+tidydata.speed = speed_cut
+tidydata = tidydata.rename({'speed':'speed_cut'},axis=1).sort_values('speed_cut')
+tidydata.reset_index(drop=True)
+
+df_left = dfs.drop(pcol+dcol,axis=1)
+df_right = tidydata
+tidydata1 = df_right.merge(df_left)
+tidydata1
+
+
+fig3 = px.line_mapbox(
+    data_frame=tidydata1,
+    lat = 'latitude',
+    lon = 'longitude',
+    color = 'speed_cut',
+    line_group = 'id',
+    center = {'lat':40.7322, 'lon':-73.9052},
+    #---#
+    mapbox_style = 'carto-positron',
+    zoom=10,
+    width = 750,
+    height = 600
+)
+scatter_data = px.scatter_mapbox(
+    data_frame=tidydata1,
+    lat = 'latitude',
+    lon = 'longitude',
+    size = 'passenger_count',
+    size_max = 10,
+    color = 'speed_cut',
+    #---#
+    mapbox_style = 'carto-positron',
+    zoom=10,
+    width = 750,
+    height = 600
+).data
+for sd in scatter_data:
+    fig3.add_trace(sd)
+fig3.update_traces(
+    line={
+        'width':1
+    },
+    opacity=0.8,
+)
+fig3.layout['legend']['title']['text'] = '평균속력'
+
+for i in range(150):
+    if (fig3.data[i]['mode']=='lines') and (fig3.data[i]['name']=='조금빠름'):
+        fig3.data[i]['name']='조금빠름(path)'
+    elif (fig3.data[i]['mode']=='lines') and (fig3.data[i]['name']=='매우빠름'):
+        fig3.data[i]['name']='조금빠름(path)'
+    elif (fig3.data[i]['mode']=='lines') and (fig3.data[i]['name']=='조금느림'):
+        fig3.data[i]['name']='조금느림(path)'
+    elif (fig3.data[i]['mode']=='lines') and (fig3.data[i]['name']=='매우느림'):
+        fig3.data[i]['name']='매우느림(path)'
+    elif (fig3.data[i]['mode']=='markers') and (fig3.data[i]['name']=='조금빠름'):
+        fig3.data[i]['name']='조금빠름(pickup/dropoff)'
+    elif (fig3.data[i]['mode']=='markers') and (fig3.data[i]['name']=='매우빠름'):
+        fig3.data[i]['name']='매우빠름(pickup/dropoff)'
+    elif (fig3.data[i]['mode']=='markers') and (fig3.data[i]['name']=='조금느림'):
+        fig3.data[i]['name']='조금느림(pickup/dropoff)'
+    elif (fig3.data[i]['mode']=='markers') and (fig3.data[i]['name']=='매우느림'):
+        fig3.data[i]['name']='매우느림(pickup/dropoff)'
+    
+    
+fig3.show(config={"scrollZoom":False})
 ```
