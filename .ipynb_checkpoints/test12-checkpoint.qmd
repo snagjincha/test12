@@ -153,8 +153,11 @@ for trace in scatter_data.data:
 fig3.update_traces(
     line={'width': 1},
     opacity=0.8,
-    selector={'type': 'scattermapbox'}  # This selector is incorrect; it should target line traces
+    selector={'type': 'scattermapbox', 'mode': 'lines'}  # 올바른 셀렉터로 수정
 )
+for trace in fig3.data:
+    if trace.mode == 'lines':
+        trace.name = f'{trace.name} (path)'
 
 # Show fig3 without scrollZoom
 fig3.show(config={'scrollZoom': False})
